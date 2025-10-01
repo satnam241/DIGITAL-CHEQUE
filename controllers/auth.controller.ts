@@ -41,36 +41,47 @@ export const register = async (req: Request, res: Response) => {
   }
 };
 
-
-export const loginController = async (req: Request, res: Response) => {
+export const login = async (req: Request, res: Response) => {
   try {
     const { email, password } = req.body;
 
-    // Validate input
     if (!email || !password) {
       return res.status(400).json({ message: "Email and password are required" });
     }
 
-    // Find user by email
-    const user = await User.findOne({ where: { email } });
-    if (!user) return res.status(401).json({ message: "Invalid credentials" });
+    const user = await User.findOne({ email });
+    console.log("User found:", user);
 
-    // Compare password
+    if (!user) {
+      return res.status(401).json({ message: "Invalid credentials (no user)" });
+    }
+
+    console.log("Entered Password:", password);
+    console.log("Stored Hash:", user.password);
+
     const isValid = await bcrypt.compare(password, user.password);
-    if (!isValid) return res.status(401).json({ message: "Invalid credentials" });
+    console.log("Compare result:", isValid);
 
-    // Generate JWT token
-    const token = jwt.sign({ userId: user.id }, JWT_SECRET, { expiresIn: "1h" });
+    if (!isValid) {
+      return res.status(401).json({ message: "Invalid credentials (password mismatch)" });
+    }
 
-    // Save token in DB → invalidates previous sessions
+    const token = jwt.sign({ userId: user._id }, JWT_SECRET, { expiresIn: "1h" });
+
     user.currentToken = token;
     await user.save();
 
-    // Return token + user info
-    return res.status(200).json({ token, user });
+    res.cookie("token", token, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "lax",
+      maxAge: 3600 * 1000,
+    });
+
+    return res.status(200).json({ message: "Logged in successfully", user });
   } catch (error) {
     console.error("Login error:", error);
-    return res.status(500).json({ message: "Internal server error" });
+    return res.status(500).json({ message: "Internal server error", error });
   }
 };
 
@@ -89,5 +100,24 @@ export const printingPage = async (req: Request, res: Response) => {
     });
   } catch (error) {
     res.status(500).json({ message: "Error accessing printing page", error });
+  }
+};export const logout = async (req: Request, res: Response) => {
+  try {
+    const user = (req as any).user;
+    if (user) {
+      user.currentToken = null;
+      await user.save();
+    }
+
+    // Clear cookie
+    res.clearCookie("token", {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "lax",
+    });
+
+    return res.json({ message: "Logged out successfully" });
+  } catch (error) {
+    return res.status(500).json({ message: "Error during logout", error });
   }
 };

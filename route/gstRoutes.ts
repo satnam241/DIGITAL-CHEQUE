@@ -1,9 +1,9 @@
-// routes/gstRoutes.ts
-import { Router } from "express";
-import { validateGST } from "../controllers/gstController";
+import express from "express";
+import { validateGST, calculateGSTAmount } from "../controllers/gstController";
 
-const router = Router();
+const router = express.Router();
 
-router.post("/validation/gst", validateGST);
+router.post("/validate-gst", validateGST);
+router.post("/calculate-gst", calculateGSTAmount);
 
 export default router;

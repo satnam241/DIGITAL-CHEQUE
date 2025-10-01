@@ -10,8 +10,8 @@ import paymentRoutes from "./route/paymentRoutes";
 import { connectDB } from "./database";
 import gstRoutes from "./route/gstRoutes";
 import dashboard from "./route/dashboard";
-
-
+import wizardform from "./route/wizard.routes";
+import cookieParser from "cookie-parser";
 dotenv.config();
 
 const app: Application = express();
@@ -20,13 +20,14 @@ app.use(cors({
   credentials: true,                    
 }));
 app.use(bodyParser.json());
-
+app.use(cookieParser());
 app.use("/api/cheques", chequeRoutes);
 app.use("/api/cheques", authRoutes)
 app.use("/api/cheques",planRoutes)
 app.use("/api/cheques",paymentRoutes)
 app.use("/api/cheques", gstRoutes);
 app.use("/api/dashboard", dashboard);
+app.use("/api/wizard-form", wizardform);
 connectDB();
 
 const PORT = process.env.PORT || 4000;

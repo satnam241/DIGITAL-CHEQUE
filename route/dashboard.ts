@@ -1,10 +1,10 @@
 import express from "express";
 import {authMiddleware} from "../middleware/auth";
-import { getUserDetails, getUsageStats } from "../controllers/dashboardController";
+import { getUserDetails, updatePassword } from "../controllers/dashboardController";
 
 const router = express.Router();
 
-router.get("/me", authMiddleware, getUserDetails);
-router.get("/usage/:userId", authMiddleware, getUsageStats);
+router.get("/user", authMiddleware, getUserDetails);
+router.put("/dashboard/resetpassword", authMiddleware, updatePassword);
 
 export default router;
