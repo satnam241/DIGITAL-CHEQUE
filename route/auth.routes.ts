@@ -1,18 +1,27 @@
 import { Router } from "express";
-import { register, login, logout, printingPage } from "../controllers/auth.controller";
+import {
+  register,
+  userLogin,
+  adminLogin,
+  logout,
+  printingPage,
+} from "../controllers/auth.controller";
 import { authMiddleware } from "../middleware/auth";
 
 const router = Router();
 
-// Public routes
-router.post("/signup", register);
-router.post("/login", login);
+// 🔹 Public Routes
+router.post("/signup", register);          // Register User (role = user/admin via body)
+router.post("/login/user", userLogin);     // User Login
+router.post("/login/admin", adminLogin);   // Admin Login
 
-// Protected routes
+// 🔹 Protected Routes
 router.post("/logout", authMiddleware, logout);
 router.get("/me", authMiddleware, (req, res) => {
   res.json({ user: (req as any).user });
 });
+
+// 🖨️ Example Protected Page
 router.get("/cheque-printing", authMiddleware, printingPage);
 
 export default router;

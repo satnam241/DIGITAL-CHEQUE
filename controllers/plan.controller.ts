@@ -1,63 +1,54 @@
 import { Request, Response } from "express";
-import User from "../model/user.model";
 import Plan from "../model/plan.model";
 
-// ✅ Create Plan (Admin use)
+// Create plan (admin)
 export const createPlan = async (req: Request, res: Response) => {
   try {
     const { name, price, cheques, durationDays } = req.body;
     const plan = new Plan({ name, price, cheques, durationDays });
     await plan.save();
     res.status(201).json(plan);
-  } catch (error) {
-    res.status(500).json({ message: "Error creating plan", error });
+  } catch (error: any) {
+    console.error("createPlan:", error);
+    res.status(500).json({ message: "Error creating plan", error: error.message });
   }
 };
 
-// ✅ Get All Plans
 export const getPlans = async (req: Request, res: Response) => {
   try {
-    const plans = await Plan.find();
+    const plans = await Plan.find().sort({ price: 1 });
     res.json(plans);
-  } catch (error) {
-    res.status(500).json({ message: "Error fetching plans", error });
+  } catch (error: any) {
+    console.error("getPlans:", error);
+    res.status(500).json({ message: "Error fetching plans", error: error.message });
   }
 };
 
-// ✅ Update Plan (Admin use)
 export const updatePlan = async (req: Request, res: Response) => {
   try {
-    const { id } = req.params; // planId from URL
+    const { id } = req.params;
     const { name, price, cheques, durationDays } = req.body;
-
-    const plan = await Plan.findByIdAndUpdate(
-      id,
-      { name, price, cheques, durationDays },
-      { new: true }
-    );
-
+    const plan = await Plan.findByIdAndUpdate(id, { name, price, cheques, durationDays }, { new: true });
     if (!plan) return res.status(404).json({ message: "Plan not found" });
-
-    res.json({ message: "Plan updated successfully", plan });
-  } catch (error) {
-    res.status(500).json({ message: "Error updating plan", error });
+    res.json({ message: "Plan updated", plan });
+  } catch (error: any) {
+    console.error("updatePlan:", error);
+    res.status(500).json({ message: "Error updating plan", error: error.message });
   }
 };
 
-// ✅ Delete Plan (Admin use)
 export const deletePlan = async (req: Request, res: Response) => {
   try {
-    const { id } = req.params; // planId from URL
-
+    const { id } = req.params;
     const plan = await Plan.findByIdAndDelete(id);
-
     if (!plan) return res.status(404).json({ message: "Plan not found" });
-
-    res.json({ message: "Plan deleted successfully" });
-  } catch (error) {
-    res.status(500).json({ message: "Error deleting plan", error });
+    res.json({ message: "Plan deleted" });
+  } catch (error: any) {
+    console.error("deletePlan:", error);
+    res.status(500).json({ message: "Error deleting plan", error: error.message });
   }
 };
+
 
 // ✅ Subscribe User to a Plan (One-time)
 export const subscribePlan = async (req: Request, res: Response) => {

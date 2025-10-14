@@ -1,32 +1,32 @@
 import mongoose, { Document, Schema, Types } from "mongoose";
 
 export interface IUser extends Document {
-  fullName: string; // controller में used
+  fullName: string;
   email: string;
   phone: string;
-  password?: string; // optional for guest users
-  plan?: Types.ObjectId;
+  password?: string | null;
+  role: "admin" | "user";
+  plan?: Types.ObjectId | null;
   chequeCounter?: number;
-  planExpiry?: Date;
-  currentToken?: string;
-  sessionId?: string;
-
-  // Step2 Address fields
-  salutation?: string;
-  companyName?: string;
-  gstNo?: string;
-  address?: string;
-  pinCode?: string;
-  city?: string;
-  state?: string;
-
+  planExpiry?: Date | null;
+  currentToken?: string | null;
+  sessionId?: string | null;
+  salutation?: string | null;
+  companyName?: string | null;
+  gstNo?: string | null;
+  address?: string | null;
+  pinCode?: string | null;
+  city?: string | null;
+  state?: string | null;
+  monthCounter?: number;
+  session?: string;
   createdAt?: Date;
   updatedAt?: Date;
 }
 
 const UserSchema = new Schema<IUser>(
   {
-    fullName: { type: String, required: true }, // required for guest & registered
+    fullName: { type: String, required: true },
     email: {
       type: String,
       required: true,
@@ -39,16 +39,22 @@ const UserSchema = new Schema<IUser>(
       unique: true,
       match: /^[0-9]{10}$/,
     },
-    password: { type: String, required: false }, // optional for guest
+    password: { type: String, required: false, default: null },
+
+    // Role for access control
+    role: {
+      type: String,
+      enum: ["admin", "user"],
+      default: "user",
+    },
 
     // Subscription details
-    plan: { type: Schema.Types.ObjectId, ref: "Plan" },
+    plan: { type: Schema.Types.ObjectId, ref: "Plan", default: null },
     chequeCounter: { type: Number, default: 0 },
-    planExpiry: { type: Date },
+    planExpiry: { type: Date, default: null },
     currentToken: { type: String, default: null },
     sessionId: { type: String, default: null },
 
-    // Step2 Address details
     salutation: { type: String, default: null },
     companyName: { type: String, default: null },
     gstNo: {
@@ -60,6 +66,9 @@ const UserSchema = new Schema<IUser>(
     pinCode: { type: String, match: /^[0-9]{6}$/, default: null },
     city: { type: String, default: null },
     state: { type: String, default: null },
+
+    monthCounter: { type: Number, default: 0 },
+    session: { type: String, default: "free" },
   },
   { timestamps: true }
 );

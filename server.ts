@@ -11,6 +11,7 @@ import { connectDB } from "./database";
 import gstRoutes from "./route/gstRoutes";
 import dashboard from "./route/dashboard";
 import wizardform from "./route/wizard.routes";
+import admin from "./route/admin.routes"
 import cookieParser from "cookie-parser";
 dotenv.config();
 
@@ -24,10 +25,11 @@ app.use(cookieParser());
 app.use("/api/cheques", chequeRoutes);
 app.use("/api/cheques", authRoutes)
 app.use("/api/cheques",planRoutes)
-app.use("/api/cheques",paymentRoutes)
+app.use("/api/payment",paymentRoutes)
 app.use("/api/cheques", gstRoutes);
 app.use("/api/dashboard", dashboard);
 app.use("/api/wizard-form", wizardform);
+app.use("/api/admin",admin)
 connectDB();
 
 const PORT = process.env.PORT || 4000;

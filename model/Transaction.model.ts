@@ -1,8 +1,7 @@
-// models/Transaction.ts
 import mongoose, { Schema, Document } from "mongoose";
 
 export interface ITransaction extends Document {
-  userId?: mongoose.Schema.Types.ObjectId;   // 👈 optional
+  userId?: mongoose.Schema.Types.ObjectId | null;
   planId: mongoose.Schema.Types.ObjectId;
   amount: number;
   currency: string;
@@ -14,30 +13,38 @@ export interface ITransaction extends Document {
     fullName: string;
     email: string;
     phone: string;
-    city?: string;
-    state?: string;
+    companyName?: string | null;
+    gstNo?: string | null;
+    address?: string | null;
+    city?: string | null;
+    state?: string | null;
   };
 }
 
 const transactionSchema = new Schema<ITransaction>(
   {
-    userId: { type: Schema.Types.ObjectId, ref: "User", required: false }, // 👈 required hatao
+    userId: { type: Schema.Types.ObjectId, ref: "User", required: false, default: null },
     planId: { type: Schema.Types.ObjectId, ref: "Plan", required: true },
     amount: { type: Number, required: true },
-    currency: { type: String, required: true },
+    currency: { type: String, required: true, default: "INR" },
     status: { type: String, default: "PENDING" },
     orderId: { type: String, required: true },
-    paymentId: { type: String },
-    signature: { type: String },
+    paymentId: { type: String, default: null },
+    signature: { type: String, default: null },
     userDetails: {
       fullName: { type: String, required: true },
       email: { type: String, required: true },
       phone: { type: String, required: true },
-      city: { type: String },
-      state: { type: String },
+      companyName: { type: String, default: null },
+      gstNo: { type: String, default: null },
+      address: { type: String, default: null },
+      city: { type: String, default: null },
+      state: { type: String, default: null },
     },
   },
   { timestamps: true }
 );
 
-export default mongoose.model<ITransaction>("Transaction", transactionSchema);
+// ✅ Ye line error fix karegi:
+export default mongoose.models.Transaction ||
+  mongoose.model<ITransaction>("Transaction", transactionSchema);
