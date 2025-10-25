@@ -11,10 +11,14 @@
 //     };
 //   }
 export const GST_RATE = 0.18;
-
-export function calculateGstForAmount(amount: number) {
-  const taxableAmount = Number(amount);
-  const gst = Number((taxableAmount * GST_RATE).toFixed(2));
-  const payableAmount = Number((taxableAmount + gst).toFixed(2));
-  return { taxableAmount, gst, payableAmount };
+export async function calculateGST(price: number, quantity = 1) {
+  try {
+    const taxableAmount = Number(price) * Number(quantity);
+    const gst = Number((taxableAmount * 0.18).toFixed(2));
+    const payableAmount = Number((taxableAmount + gst).toFixed(2));
+    return { success: true, data: { taxableAmount, gst, payableAmount } };
+  } catch (err: any) {
+    return { success: false, error: err.message || "Error calculating GST" };
+  }
 }
+

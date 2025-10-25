@@ -5,6 +5,8 @@ import {
   adminLogin,
   logout,
   printingPage,
+  forgotPassword,
+  resetPassword,
 } from "../controllers/auth.controller";
 import { authMiddleware } from "../middleware/auth";
 
@@ -14,6 +16,8 @@ const router = Router();
 router.post("/signup", register);          // Register User (role = user/admin via body)
 router.post("/login/user", userLogin);     // User Login
 router.post("/login/admin", adminLogin);   // Admin Login
+router.post("/forgot-password", forgotPassword);
+router.post("/reset-password", resetPassword);
 
 // 🔹 Protected Routes
 router.post("/logout", authMiddleware, logout);
