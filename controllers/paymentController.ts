@@ -100,75 +100,94 @@ export const createOrder = async (req: Request, res: Response) => {
 
 export const verifyPayment = async (req: Request, res: Response) => {
   try {
-    const { razorpay_order_id, razorpay_payment_id, razorpay_signature, transactionId } = req.body;
+    const { razorpay_order_id, razorpay_payment_id, razorpay_signature } = req.body;
 
-    if (!transactionId) return res.status(400).json({ message: "transactionId required" });
-    const transaction = await Transaction.findById(transactionId);
+    // 1️⃣ Find transaction
+    const transaction = await Transaction.findOne({ orderId: razorpay_order_id });
     if (!transaction) return res.status(404).json({ message: "Transaction not found" });
 
+    // 2️⃣ Verify signature
     const generated_signature = crypto
-      .createHmac("sha256", process.env.RAZORPAY_KEY_SECRET as string)
+      .createHmac("sha256", process.env.RAZORPAY_KEY_SECRET!)
       .update(`${razorpay_order_id}|${razorpay_payment_id}`)
       .digest("hex");
 
-    // === DEBUG LOGS ===
-    console.log("🔹 [DEBUG] Transaction ID:", transactionId);
-    console.log("🔹 [DEBUG] Received Razorpay Order ID:", razorpay_order_id);
-    console.log("🔹 [DEBUG] Received Payment ID:", razorpay_payment_id);
-    console.log("🔹 [DEBUG] Received Signature (from frontend):", razorpay_signature);
-    console.log("🔹 [DEBUG] Generated Signature (backend):", generated_signature);
-    // ===================
-
-    // Compare signatures
     if (generated_signature !== razorpay_signature) {
       transaction.status = "FAILED";
-      transaction.signature = generated_signature; 
       await transaction.save();
-
-      return res.status(400).json({
-        message: "Invalid payment signature",
-        debug: {
-          generated_signature,
-          received_signature: razorpay_signature,
-        },
-      });
+      return res.status(400).json({ message: "Invalid signature, payment verification failed" });
     }
 
-    transaction.status = "SUCCESS";
+    // 3️⃣ Update transaction success
     transaction.paymentId = razorpay_payment_id;
     transaction.signature = razorpay_signature;
+    transaction.status = "SUCCESS";
     await transaction.save();
 
-   // Payment successful → create user if not exists
-let user = transaction.userId ? await User.findById(transaction.userId) : null;
-if (!user) {
-  // Create new user after successful payment
-  user = await User.create({
-    fullName: transaction.userDetails.fullName,
-    email: transaction.userDetails.email,
-    phone: transaction.userDetails.phone,
-    password: "", // blank for now → user will set via OTP/reset
-    plan: transaction.planId,
-    session: "premium",
-    planExpiry: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // 30 days, adjust via plan
-  });
+    // 4️⃣ Fetch plan details
+    const planDoc = await Plan.findById(transaction.planId);
+    const durationDays = (planDoc as any)?.durationDays || 30;
+    const planStart = new Date();
+    const planEnd = new Date(planStart.getTime() + durationDays * 24 * 60 * 60 * 1000);
+    const countdown = Math.max(0, Math.ceil((planEnd.getTime() - Date.now()) / (1000 * 60 * 60 * 24)));
 
-  // Optional: send OTP/email to set password
-  // await sendOTP(user.email); // implement your OTP email flow
-}
+    // 5️⃣ Handle user linking
+    let user = transaction.userId ? await User.findById(transaction.userId) : null;
 
+    // 🟢 If user not found — create new
+    if (!user) {
+      const fullName =
+      transaction.userDetails?.fullName?.trim() ||
+      transaction.userDetails?.name?.trim() ||
+      user?.name ||
+      "User";
+    
 
+      user = await User.create({
+        name: fullName,
+        email: transaction.userDetails?.email || "",
+        phone: transaction.userDetails?.phone || "",
+        password: "",
+        plan: transaction.planId,
+        session: "active",
+        planExpiry: planEnd,
+      });
+
+      transaction.userId = user._id;
+      await transaction.save();
+    } else {
+      // 🟡 If user exists — update plan info
+      user.plan = transaction.planId;
+      user.planExpiry = planEnd;
+      user.session = "active";
+      await user.save();
+    }
+
+    // 6️⃣ Update plan link
+    await Plan.findByIdAndUpdate(transaction.planId, {
+      userId: user._id,
+      status: "active",
+    });
+
+    // 7️⃣ Populate for return
+    const populatedTransaction = await Transaction.findById(transaction._id)
+      .populate("planId", "name price durationDays")
+      .populate("userId", "name email phone");
+
+    // ✅ Final Response
     return res.status(200).json({
-      message: "Payment verified & plan subscribed",
-      transaction,
+      message: "✅ Payment verified & plan subscribed successfully",
+      transaction: populatedTransaction,
       user,
-      debug: {
-        generated_signature,
-        received_signature: razorpay_signature,
-      },
+      planStart,
+      planEnd,
+      countdown,
     });
   } catch (error: any) {
     console.error("verifyPayment error:", error);
-    res.status(500).json({ message: "Payment verification failed", error: error.message });
+    res.status(500).json({
+      message: "Payment verification failed",
+      error: error.message,
+    });
   }
 };

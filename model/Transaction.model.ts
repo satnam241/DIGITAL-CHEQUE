@@ -5,10 +5,10 @@ export interface ITransaction extends Document {
   planId: mongoose.Schema.Types.ObjectId;
   amount: number;
   currency: string;
-  status: string;
+  status: "PENDING" | "SUCCESS" | "FAILED";
   orderId: string;
-  paymentId?: string;
-  signature?: string;
+  paymentId?: string | null;
+  signature?: string | null;
   userDetails: {
     fullName: string;
     email: string;
@@ -23,11 +23,26 @@ export interface ITransaction extends Document {
 
 const transactionSchema = new Schema<ITransaction>(
   {
-    userId: { type: Schema.Types.ObjectId, ref: "User", required: false, default: null },
-    planId: { type: Schema.Types.ObjectId, ref: "Plan", required: true },
+    userId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+      required: false,
+      default: null,
+      index: true, // ✅ faster lookup for dashboard/user history
+    },
+    planId: {
+      type: Schema.Types.ObjectId,
+      ref: "Plan",
+      required: true,
+      index: true, // ✅ faster populate & filter by plan
+    },
     amount: { type: Number, required: true },
     currency: { type: String, required: true, default: "INR" },
-    status: { type: String, default: "PENDING" },
+    status: {
+      type: String,
+      enum: ["PENDING", "SUCCESS", "FAILED"], // ✅ enum restriction
+      default: "PENDING",
+    },
     orderId: { type: String, required: true },
     paymentId: { type: String, default: null },
     signature: { type: String, default: null },
@@ -45,6 +60,8 @@ const transactionSchema = new Schema<ITransaction>(
   { timestamps: true }
 );
 
-// ✅ Ye line error fix karegi:
+// ✅ Index for better sorting on dashboard
+transactionSchema.index({ createdAt: -1 });
+
 export default mongoose.models.Transaction ||
   mongoose.model<ITransaction>("Transaction", transactionSchema);
