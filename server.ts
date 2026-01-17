@@ -21,7 +21,10 @@ app.use(cors({
   credentials: true,                    
 }));
 console.log("EMAIL_USER:", process.env.EMAIL_USER);
-console.log("EMAIL_PASS exists:", !!process.env.EMAIL_PASS);
+console.log("EMAIL_PASS exists:", !!process.env.EMAIL_PASS)
+app.get("/", (_req, res) => {
+  res.send("🚀 Facebook Webhook API Live!");
+});
 
 app.use(bodyParser.json());
 app.use(cookieParser());
