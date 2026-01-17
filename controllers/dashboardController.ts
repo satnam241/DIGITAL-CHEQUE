@@ -199,7 +199,12 @@ export const getUserDetails = async (req: any, res: Response) => {
       user: {
         id: user._id,
         email: user.email,
-        name: userDoc?.name?.trim() || user.name || user.email?.split("@")[0] || "User",
+        name:
+  userDoc?.fullName?.trim() ||
+  user.fullName ||
+  user.email?.split("@")[0] ||
+  "User",
+
         plan: activePlan ? activePlan.name : "",
         planStart,
         planEnd,

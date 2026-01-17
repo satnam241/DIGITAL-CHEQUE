@@ -20,10 +20,16 @@ export const createOrder = async (req: Request, res: Response) => {
       return res.status(400).json({ message: "GST calculation failed", error: gstCalcResult.error });
     }
 
-    const expectedPayable = gstCalcResult.data.payableAmount;
-    const taxableAmount = gstCalcResult.data.taxableAmount;
-    const gstAmount = gstCalcResult.data.gst;
-
+    if (!gstCalcResult.data) {
+      throw new Error("GST calculation failed");
+    }
+    
+    const {
+      payableAmount: expectedPayable,
+      taxableAmount,
+      gst: gstAmount,
+    } = gstCalcResult.data;
+    
     if (typeof payableAmount === "number") {
       const diff = Math.abs(expectedPayable - Number(payableAmount));
       if (diff > 0.5) {
@@ -139,7 +145,7 @@ export const verifyPayment = async (req: Request, res: Response) => {
       const fullName =
       transaction.userDetails?.fullName?.trim() ||
       transaction.userDetails?.name?.trim() ||
-      user?.name ||
+      // user?.fullName ||
       "User";
     
 

@@ -1,0 +1,175 @@
+"use strict";
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.verifyPayment = exports.createOrder = void 0;
+const razorpay_1 = require("../config/razorpay");
+const plan_model_1 = __importDefault(require("../model/plan.model"));
+const transaction_model_1 = __importDefault(require("../model/transaction.model"));
+const user_model_1 = __importDefault(require("../model/user.model"));
+const gstCalculator_1 = require("../utils/gstCalculator");
+const crypto_1 = __importDefault(require("crypto"));
+const createOrder = async (req, res) => {
+    try {
+        const { planId, payableAmount, userId, userDetails } = req.body;
+        if (!planId)
+            return res.status(400).json({ message: "Plan ID is required" });
+        const plan = await plan_model_1.default.findById(planId);
+        if (!plan)
+            return res.status(404).json({ message: "Plan not found" });
+        const gstCalcResult = await (0, gstCalculator_1.calculateGST)(plan.price);
+        if (!gstCalcResult.success) {
+            return res.status(400).json({ message: "GST calculation failed", error: gstCalcResult.error });
+        }
+        if (!gstCalcResult.data) {
+            throw new Error("GST calculation failed");
+        }
+        const { payableAmount: expectedPayable, taxableAmount, gst: gstAmount, } = gstCalcResult.data;
+        if (typeof payableAmount === "number") {
+            const diff = Math.abs(expectedPayable - Number(payableAmount));
+            if (diff > 0.5) {
+                return res.status(400).json({
+                    message: "Payable amount mismatch",
+                    expected: expectedPayable,
+                    provided: payableAmount,
+                });
+            }
+        }
+        let linkedUserId = userId || null;
+        let txUserDetails = userDetails;
+        if (!linkedUserId) {
+            if (!userDetails || !userDetails.fullName || !userDetails.email || !userDetails.phone) {
+                return res.status(400).json({ message: "userDetails (fullName,email,phone) required" });
+            }
+            // Guest session remove → ab user create nahi hoga pehle
+            const existingUser = await user_model_1.default.findOne({ email: userDetails.email });
+            if (existingUser) {
+                return res.status(400).json({ message: "Email already registered. Please login." });
+            }
+            // userDetails sirf transaction me save karenge → user creation payment ke baad
+            linkedUserId = null;
+        }
+        const amountInPaise = Math.round(expectedPayable * 100);
+        const options = {
+            amount: amountInPaise,
+            currency: "INR",
+            receipt: `rcpt_${Date.now()}`,
+        };
+        const razorpayOrder = await razorpay_1.razorpay.orders.create(options);
+        const transaction = await transaction_model_1.default.create({
+            userId: linkedUserId,
+            planId,
+            amount: expectedPayable,
+            currency: "INR",
+            status: "PENDING",
+            orderId: razorpayOrder.id,
+            userDetails: {
+                fullName: userDetails?.fullName || "",
+                email: userDetails?.email || "",
+                phone: userDetails?.phone || "",
+                companyName: userDetails?.companyName || null,
+                gstNo: userDetails?.gstNo || null,
+                address: userDetails?.address || null,
+                city: userDetails?.city || null,
+                state: userDetails?.state || null,
+            },
+        });
+        return res.status(200).json({
+            message: "Order created",
+            order: razorpayOrder,
+            transactionId: transaction._id,
+            payableAmount: expectedPayable,
+            taxableAmount,
+            gst: gstAmount,
+        });
+    }
+    catch (error) {
+        console.error("createOrder error:", error);
+        return res.status(500).json({ message: "Failed to create order", error: error.message });
+    }
+};
+exports.createOrder = createOrder;
+const verifyPayment = async (req, res) => {
+    try {
+        const { razorpay_order_id, razorpay_payment_id, razorpay_signature } = req.body;
+        // 1️⃣ Find transaction
+        const transaction = await transaction_model_1.default.findOne({ orderId: razorpay_order_id });
+        if (!transaction)
+            return res.status(404).json({ message: "Transaction not found" });
+        // 2️⃣ Verify signature
+        const generated_signature = crypto_1.default
+            .createHmac("sha256", process.env.RAZORPAY_KEY_SECRET)
+            .update(`${razorpay_order_id}|${razorpay_payment_id}`)
+            .digest("hex");
+        if (generated_signature !== razorpay_signature) {
+            transaction.status = "FAILED";
+            await transaction.save();
+            return res.status(400).json({ message: "Invalid signature, payment verification failed" });
+        }
+        // 3️⃣ Update transaction success
+        transaction.paymentId = razorpay_payment_id;
+        transaction.signature = razorpay_signature;
+        transaction.status = "SUCCESS";
+        await transaction.save();
+        // 4️⃣ Fetch plan details
+        const planDoc = await plan_model_1.default.findById(transaction.planId);
+        const durationDays = planDoc?.durationDays || 30;
+        const planStart = new Date();
+        const planEnd = new Date(planStart.getTime() + durationDays * 24 * 60 * 60 * 1000);
+        const countdown = Math.max(0, Math.ceil((planEnd.getTime() - Date.now()) / (1000 * 60 * 60 * 24)));
+        // 5️⃣ Handle user linking
+        let user = transaction.userId ? await user_model_1.default.findById(transaction.userId) : null;
+        // 🟢 If user not found — create new
+        if (!user) {
+            const fullName = transaction.userDetails?.fullName?.trim() ||
+                transaction.userDetails?.name?.trim() ||
+                // user?.fullName ||
+                "User";
+            user = await user_model_1.default.create({
+                name: fullName,
+                email: transaction.userDetails?.email || "",
+                phone: transaction.userDetails?.phone || "",
+                password: "",
+                plan: transaction.planId,
+                session: "active",
+                planExpiry: planEnd,
+            });
+            transaction.userId = user._id;
+            await transaction.save();
+        }
+        else {
+            // 🟡 If user exists — update plan info
+            user.plan = transaction.planId;
+            user.planExpiry = planEnd;
+            user.session = "active";
+            await user.save();
+        }
+        // 6️⃣ Update plan link
+        await plan_model_1.default.findByIdAndUpdate(transaction.planId, {
+            userId: user._id,
+            status: "active",
+        });
+        // 7️⃣ Populate for return
+        const populatedTransaction = await transaction_model_1.default.findById(transaction._id)
+            .populate("planId", "name price durationDays")
+            .populate("userId", "name email phone");
+        // ✅ Final Response
+        return res.status(200).json({
+            message: "✅ Payment verified & plan subscribed successfully",
+            transaction: populatedTransaction,
+            user,
+            planStart,
+            planEnd,
+            countdown,
+        });
+    }
+    catch (error) {
+        console.error("verifyPayment error:", error);
+        res.status(500).json({
+            message: "Payment verification failed",
+            error: error.message,
+        });
+    }
+};
+exports.verifyPayment = verifyPayment;

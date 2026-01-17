@@ -1,7 +1,7 @@
 import mongoose, { Document, Schema, Types } from "mongoose";
 
 export interface IUser extends Document {
-  name: string;
+  fullName: string;
   email: string;
   phone: string;
   password?: string | null;
@@ -19,14 +19,14 @@ export interface IUser extends Document {
   city?: string | null;
   state?: string | null;
   monthCounter?: number;
-  session?: "active" | "inactive";
+  session?: "active" | "inactive" | "free" | "premium";
   createdAt?: Date;
   updatedAt?: Date;
 }
 
 const UserSchema = new Schema<IUser>(
   {
-    name: { type: String, required: false },
+    fullName: { type: String, required: false },
 
     email: {
       type: String,
@@ -71,7 +71,7 @@ const UserSchema = new Schema<IUser>(
     monthCounter: { type: Number, default: 0 },
     session: {
       type: String,
-      enum: ["free", "active", "inactive"],
+      enum: ["free", "active", "inactive",],
       default: "free",
     },
   },

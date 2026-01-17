@@ -2,7 +2,7 @@ import { Request, Response } from "express";
 import mongoose from "mongoose";
 import User from "../model/user.model";
 import Plan from "../model/plan.model";
-import Transaction from "../model/Transaction.model";
+import Transaction from "../model/transaction.model";
 
 /**
  * 🧾 Get all users with their active plan details
